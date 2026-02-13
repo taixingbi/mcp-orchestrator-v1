@@ -8,7 +8,7 @@ from mcp.server import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
 from config import settings
-from orchestrator import answer_query_sync, stream_answer_query
+from orchestrator import answer_query_sync, format_error, stream_answer_query
 
 # streamable_http_path="/" so mounted at /mcp matches (path becomes /)
 mcp = FastMCP(
@@ -26,25 +26,20 @@ async def answer_question(question: str) -> str:
     """Answer a question using SQL then RAG tools. Returns the full answer text."""
     try:
         return await answer_query_sync(
-            question, tools_timeout_s=60.0, invoke_timeout_s=120.0
+            question,
+            tools_timeout_s=settings.tools_timeout_s,
+            invoke_timeout_s=settings.invoke_timeout_s,
         )
     except Exception as e:
-        sub = getattr(e, "exceptions", None)
-        err = sub[0] if sub else e
-        return f"Error: {type(err).__name__}: {err}"
-
-
-@mcp.tool()
-async def _sse_stream_answer(question: str) -> str:
-    """Alias for answer_question. Returns the full answer text (same as answer_question)."""
-    return await answer_question(question)
+        return format_error(e)
 
 
 def _sse_stream_answer_gen(question: str):
-    """Async generator for POST /stream-answer. Yields SSE events from stream_answer_query."""
+    """Async generator for POST /stream-answer. Yields SSE events from stream_answer_query.
+    Chunks are dicts: {type: 'rewrite'|'answer'|'error', text: '...'}."""
     async def _gen():
         async for chunk in stream_answer_query(question):
-            yield f"data: {json.dumps({'text': chunk})}\n\n"
+            yield f"data: {json.dumps(chunk)}\n\n"
     return _gen()
 
 

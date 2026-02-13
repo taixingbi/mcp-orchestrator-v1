@@ -27,6 +27,14 @@ class Settings:
 
     # OpenAI (used by orchestrator; often set by LangChain)
     openai_api_key: Optional[str] = os.getenv("OPENAI_API_KEY")
+    openai_model: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+
+    # Query rewriting (refine question before SQL/RAG)
+    rewrite_query: bool = os.getenv("REWRITE_QUERY", "false").lower() == "true"
+
+    # Default timeouts for MCP tool calls (seconds)
+    tools_timeout_s: float = float(os.getenv("TOOLS_TIMEOUT_S", "60"))
+    invoke_timeout_s: float = float(os.getenv("INVOKE_TIMEOUT_S", "120"))
 
 
 settings = Settings()
