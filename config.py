@@ -1,0 +1,32 @@
+"""Application settings loaded from environment."""
+
+import os
+from typing import Optional
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+class Settings:
+    """Settings from env (and .env)."""
+
+    # App
+    mcp_name: str = os.getenv("MCP_NAME")
+    app_version: str = os.getenv("APP_VERSION")
+
+    # LangChain / LangSmith
+    langchain_project: Optional[str] = os.getenv("LANGCHAIN_PROJECT")
+    langchain_api_key: Optional[str] = os.getenv("LANGCHAIN_API_KEY")
+    langchain_endpoint: Optional[str] = os.getenv("LANGCHAIN_ENDPOINT")
+    langsmith_tracing: bool = os.getenv("LANGSMITH_TRACING", "false").lower() == "true"
+
+    # MCP tool URLs (no trailing slash in env; code adds / when needed)
+    mcp_tool_sql_url: Optional[str] = os.getenv("MCP_TOOL_SQL_URL")
+    mcp_tool_rag_url: Optional[str] = os.getenv("MCP_TOOL_RAG_URL")
+
+    # OpenAI (used by orchestrator; often set by LangChain)
+    openai_api_key: Optional[str] = os.getenv("OPENAI_API_KEY")
+
+
+settings = Settings()
