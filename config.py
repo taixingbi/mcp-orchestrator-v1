@@ -12,8 +12,8 @@ class Settings:
     """Settings from env (and .env)."""
 
     # App
-    mcp_name: str = os.getenv("MCP_NAME")
-    app_version: str = os.getenv("APP_VERSION")
+    mcp_name: str = os.getenv("MCP_NAME", "mcp-orchestrator")
+    app_version: str = os.getenv("APP_VERSION", "0.1.0")
 
     # LangChain / LangSmith
     langchain_project: Optional[str] = os.getenv("LANGCHAIN_PROJECT")

@@ -9,13 +9,16 @@ RAG_TOOL_NAME = "rag_query_with_chunks"
 SQL_TOOL_NAME = "sql_query"
 
 
+def _server_dict(name: str, url: str) -> dict:
+    """Build a single-server config for MultiServerMCPClient."""
+    return {name: {"transport": "http", "url": url.rstrip("/") + "/"}} if url else {}
+
+
 def get_server_configs() -> Tuple[dict, dict]:
     """Return (sql_servers, rag_servers) from env. Each may be empty."""
     sql_url = os.getenv("MCP_TOOL_SQL_URL", "").rstrip("/")
     rag_url = os.getenv("MCP_TOOL_RAG_URL", "").rstrip("/")
-    sql_servers = {"tool_sql": {"transport": "http", "url": sql_url + "/"}} if sql_url else {}
-    rag_servers = {"tool_rag": {"transport": "http", "url": rag_url + "/"}} if rag_url else {}
-    return sql_servers, rag_servers
+    return _server_dict("tool_sql", sql_url), _server_dict("tool_rag", rag_url)
 
 
 async def _mcp_tools_call(

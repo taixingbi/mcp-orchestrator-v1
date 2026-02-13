@@ -1,6 +1,5 @@
 import asyncio
-import os
-from typing import Any, AsyncIterator, Literal, Tuple, Dict
+from typing import Any, AsyncIterator, Literal, Tuple, Dict, List
 
 from dotenv import load_dotenv
 from langgraph.graph import StateGraph, START, END, MessagesState
@@ -13,6 +12,8 @@ from mcp_tools import get_server_configs
 load_dotenv()
 
 _STREAM_CONFIG = {"configurable": {}}
+_STREAM_TOOLS_TIMEOUT_S = 60.0
+_STREAM_INVOKE_TIMEOUT_S = 120.0
 _agent_cache: Dict[Tuple[str, float], Any] = {}
 
 
@@ -22,7 +23,7 @@ def _should_continue(state: MessagesState) -> Literal["tool_node", "__end__"]:
 
 
 def _extract_ai_content(msg: Any) -> str:
-    content = getattr(msg, "content", None)
+    content = msg.get("content") if isinstance(msg, dict) else getattr(msg, "content", None)
     if isinstance(content, str):
         return content
     if isinstance(content, list):
@@ -30,6 +31,15 @@ def _extract_ai_content(msg: Any) -> str:
             b.get("text", "") for b in content
             if isinstance(b, dict) and b.get("type") == "text"
         )
+    return ""
+
+
+def _last_ai_content(messages: List[Any]) -> str:
+    """Return the text content of the last AI message in the list."""
+    for msg in reversed(messages):
+        is_ai = getattr(msg, "type", None) == "ai" or (isinstance(msg, dict) and msg.get("type") == "ai")
+        if is_ai:
+            return _extract_ai_content(msg) or ""
     return ""
 
 
@@ -92,6 +102,12 @@ async def run_agent(
     return {"messages": messages}
 
 
+async def answer_query_sync(query: str, **kwargs: Any) -> str:
+    """Run agent (SQL then RAG) and return the final answer as a single string."""
+    out = await run_agent(query, **kwargs)
+    return _last_ai_content(out["messages"])
+
+
 async def stream_answer_query(query: str) -> AsyncIterator[str]:
     """Stream the final assistant reply. Runs SQL tools first, then RAG tools."""
     try:
@@ -100,10 +116,14 @@ async def stream_answer_query(query: str) -> AsyncIterator[str]:
             yield "Error: At least one of MCP_TOOL_SQL_URL or MCP_TOOL_RAG_URL must be set"
             return
         messages = [{"role": "user", "content": query}]
-        messages = await _run_phase(messages, sql_servers, 60.0, 120.0)
+        messages = await _run_phase(
+            messages, sql_servers, _STREAM_TOOLS_TIMEOUT_S, _STREAM_INVOKE_TIMEOUT_S
+        )
 
         if rag_servers:
-            agent_rag = await _build_agent_for_servers(rag_servers, tools_timeout_s=60.0)
+            agent_rag = await _build_agent_for_servers(
+                rag_servers, tools_timeout_s=_STREAM_TOOLS_TIMEOUT_S
+            )
             last_content = ""
             async for chunk in agent_rag.astream(
                 {"messages": messages}, stream_mode="values", config=_STREAM_CONFIG
@@ -117,12 +137,9 @@ async def stream_answer_query(query: str) -> AsyncIterator[str]:
             if last_content:
                 yield last_content
         else:
-            for msg in reversed(messages):
-                if getattr(msg, "type", None) == "ai":
-                    content = _extract_ai_content(msg)
-                    if content:
-                        yield content
-                    break
+            content = _last_ai_content(messages)
+            if content:
+                yield content
     except Exception as e:
         yield _format_error(e)
 
@@ -130,7 +147,6 @@ async def stream_answer_query(query: str) -> AsyncIterator[str]:
 def _format_error(e: Exception) -> str:
     """Unwrap ExceptionGroup so the real cause is shown."""
     sub = getattr(e, "exceptions", None)
-    if sub and len(sub) > 0:
-        first = sub[0]
-        return f"Error: {type(first).__name__}: {first}"
+    if sub:
+        return f"Error: {type(sub[0]).__name__}: {sub[0]}"
     return f"Error: {type(e).__name__}: {e}"
