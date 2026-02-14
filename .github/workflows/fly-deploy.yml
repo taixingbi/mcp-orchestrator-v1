@@ -19,9 +19,9 @@ jobs:
         id: target
         run: |
           case "${{ github.ref }}" in
-            refs/heads/main)         echo "app=mcp-orchestrator-prod" >> $GITHUB_OUTPUT ;;
-            refs/heads/qa)          echo "app=mcp-orchestrator-qa" >> $GITHUB_OUTPUT ;;
-            refs/heads/feature/*)   echo "app=mcp-orchestrator-dev" >> $GITHUB_OUTPUT ;;
+            refs/heads/main)         echo "app=mcp-orchestrator-v1-prod" >> $GITHUB_OUTPUT ;;
+            refs/heads/qa)          echo "app=mcp-orchestrator-v1-qa" >> $GITHUB_OUTPUT ;;
+            refs/heads/feature/*)   echo "app=mcp-orchestrator-v1-dev" >> $GITHUB_OUTPUT ;;
             *) echo "No deploy target for ${{ github.ref }}" && exit 1 ;;
           esac
       - name: Create app if not exists
