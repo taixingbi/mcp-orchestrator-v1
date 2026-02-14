@@ -7,6 +7,7 @@ mcp
 
 langchain-community
 langchain-openai
+langsmith
 langchain-mcp-adapters
 langgraph
 

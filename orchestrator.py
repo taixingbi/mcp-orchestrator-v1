@@ -1,16 +1,22 @@
 import asyncio
-from typing import Any, AsyncIterator, List
+import uuid
+from typing import Any, AsyncIterator, List, Optional
 
 from dotenv import load_dotenv
 
 from agent_factory import build_agent_for_servers
-from config import settings
+from config import get_langsmith_tags, settings
 from mcp_tools import get_server_configs
 from rewrite import rewrite_query
 
 load_dotenv()
 
-_STREAM_CONFIG = {"configurable": {}}
+def _invoke_config(run_id: Optional[str] = None) -> dict:
+    """Config with LangSmith tags (and optional run_id for feedback) for agent invocations."""
+    cfg: dict = {"configurable": {}, "tags": get_langsmith_tags()}
+    if run_id:
+        cfg["run_id"] = run_id
+    return cfg
 
 
 def _extract_ai_content(msg: Any) -> str:
@@ -47,13 +53,14 @@ async def _run_phase(
     servers: dict,
     tools_timeout_s: float,
     invoke_timeout_s: float,
+    run_id: Optional[str] = None,
 ) -> list:
     """Run one phase (SQL or RAG) and return updated messages."""
     if not servers:
         return messages
     agent = await build_agent_for_servers(servers, tools_timeout_s)
     out = await asyncio.wait_for(
-        agent.ainvoke({"messages": messages}),
+        agent.ainvoke({"messages": messages}, config=_invoke_config(run_id)),
         timeout=invoke_timeout_s,
     )
     return out["messages"]
@@ -81,24 +88,35 @@ async def answer_query_sync(query: str, **kwargs: Any) -> str:
 
 
 async def stream_answer_query(query: str) -> AsyncIterator[dict]:
-    """Stream the final assistant reply. Runs SQL tools first, then RAG tools."""
+    """Stream the final assistant reply. Runs SQL tools first, then RAG tools.
+    Yields run_id in first event for LangSmith feedback association."""
+    run_id = str(uuid.uuid4())
     try:
         sql_servers, rag_servers = _ensure_servers()
+        yield {"type": "run_id", "run_id": run_id}
         if settings.rewrite_query:
+            yield {"type": "state", "phase": "rewrite", "message": "Rewriting question..."}
             query = await rewrite_query(query)
             yield {"type": "rewrite", "text": query}
         messages = [{"role": "user", "content": query}]
+        if sql_servers:
+            yield {"type": "state", "phase": "sql", "message": "Running SQL phase..."}
         messages = await _run_phase(
-            messages, sql_servers, settings.tools_timeout_s, settings.invoke_timeout_s
+            messages,
+            sql_servers,
+            settings.tools_timeout_s,
+            settings.invoke_timeout_s,
+            run_id=run_id if not rag_servers else None,
         )
 
         if rag_servers:
+            yield {"type": "state", "phase": "rag", "message": "Running RAG phase..."}
             agent_rag = await build_agent_for_servers(
                 rag_servers, tools_timeout_s=settings.tools_timeout_s
             )
             last_content = ""
             async for chunk in agent_rag.astream(
-                {"messages": messages}, stream_mode="values", config=_STREAM_CONFIG
+                {"messages": messages}, stream_mode="values", config=_invoke_config(run_id)
             ):
                 if not chunk or "messages" not in chunk:
                     continue
@@ -112,6 +130,7 @@ async def stream_answer_query(query: str) -> AsyncIterator[dict]:
             content = _last_ai_content(messages)
             if content:
                 yield {"type": "answer", "text": content}
+        yield {"type": "state", "phase": "done", "message": "Complete"}
     except Exception as e:
         yield {"type": "error", "text": format_error(e)}
 

@@ -54,3 +54,28 @@ curl -N -sS "http://localhost:8000/stream-answer" \
   -H "Content-Type: application/json" \
   -d '{"question": "List 5 job titles in Ventura?"}'
 ```
+
+## Feedback
+
+Submit feedback on an agent response (thumbs up/down, type, optional comment):
+
+```bash
+curl -s -X POST "http://localhost:8000/feedback" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "rating": "thumbs_down",
+    "feedback_type": "not_factual",
+    "question": "List 5 job titles in Ventura",
+    "comment": "Only returned 3 titles"
+  }'
+```
+
+Thumbs up example:
+
+```bash
+curl -s -X POST http://127.0.0.1:8000/feedback \
+  -H "Content-Type: application/json" \
+  -d '{"run_id":"2d5ab7dc-7dd1-40f7-9787-2086c7b9b644","rating":"thumbs_up"}'
+```
+
+`feedback_type` (optional): `not_relevant`, `biased`, `not_factual`, `incomplete_instructions`, `unsafe`, `style_tone`, `other`

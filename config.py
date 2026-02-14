@@ -1,7 +1,7 @@
 """Application settings loaded from environment."""
 
 import os
-from typing import Optional
+from typing import List, Optional
 
 from dotenv import load_dotenv
 
@@ -38,3 +38,18 @@ class Settings:
 
 
 settings = Settings()
+
+
+def get_langsmith_tags() -> List[str]:
+    """Build tags for LangSmith traces (key:value format)."""
+    tags = [
+        f"mcp_name:{settings.mcp_name}",
+        f"agent_model:{settings.openai_model}",
+        f"agent_rewrite_query:{settings.rewrite_query}",
+        f"agent_has_sql:{bool(settings.mcp_tool_sql_url)}",
+    ]
+    if settings.langchain_project:
+        tags.append(f"langchain_project:{settings.langchain_project}")
+    if settings.langsmith_tracing:
+        tags.append("langsmith_tracing:true")
+    return tags
