@@ -64,25 +64,26 @@ curl -N -sS "http://localhost:8000/stream-answer" \
 
 ## Feedback
 
-Submit feedback on an agent response (thumbs up/down, type, optional comment):
+Submit feedback on an agent response. Use `run_id` from the first SSE event of `/stream-answer` to attach feedback to that run in LangSmith.
 
+**Thumbs up (with run_id):**
 ```bash
-curl -s -X POST "http://localhost:8000/feedback" \
+curl -s -X POST http://localhost:8000/feedback \
+  -H "Content-Type: application/json" \
+  -d '{"run_id":"<run_id from stream-answer>","rating":"thumbs_up"}'
+```
+
+**Thumbs down (with type and comment):**
+```bash
+curl -s -X POST http://localhost:8000/feedback \
   -H "Content-Type: application/json" \
   -d '{
+    "run_id": "<run_id from stream-answer>",
     "rating": "thumbs_down",
     "feedback_type": "not_factual",
     "question": "List 5 job titles in Ventura",
     "comment": "Only returned 3 titles"
   }'
-```
-
-Thumbs up example:
-
-```bash
-curl -s -X POST http://127.0.0.1:8000/feedback \
-  -H "Content-Type: application/json" \
-  -d '{"run_id":"2d5ab7dc-7dd1-40f7-9787-2086c7b9b644","rating":"thumbs_up"}'
 ```
 
 `feedback_type` (optional): `not_relevant`, `biased`, `not_factual`, `incomplete_instructions`, `unsafe`, `style_tone`, `other`
@@ -132,4 +133,31 @@ curl -s -X POST "https://mcp-orchestrator-v1-dev.fly.dev/mcp/" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"answer_question","arguments":{"question":"List 5 job titles in Ventura"}}}'
+```
+
+```bash
+curl -s -X POST "https://mcp-orchestrator-v1-dev.fly.dev/mcp/" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"answer_question","arguments":{"question":"what is taixing visa"}}}'
+```
+
+**Thumbs up (with run_id):**
+```bash
+curl -s -X POST https://mcp-orchestrator-v1-dev.fly.dev/feedback \
+  -H "Content-Type: application/json" \
+  -d '{"run_id":"lc_2038042c-2ed5-4444-afeb-3c2fac830ed2","rating":"thumbs_up"}'
+```
+
+**Thumbs down (with type and comment):**
+```bash
+curl -s -X POST https://mcp-orchestrator-v1-dev.fly.dev/feedback \
+  -H "Content-Type: application/json" \
+  -d '{
+    "run_id": "lc_2038042c-2ed5-4444-afeb-3c2fac830ed2",
+    "rating": "thumbs_down",
+    "feedback_type": "not_factual",
+    "question": "List 5 job titles in Ventura",
+    "comment": "Only returned 3 titles"
+  }'
 ```
