@@ -35,6 +35,13 @@ uvicorn main:app --reload --port 8000
 curl http://127.0.0.1:8000/health
 ```
 
+### Docker
+<!-- Build and run with .env; port 8000. -->
+```bash
+docker build -t mcp-server .
+docker run -p 8000:8000 --env-file .env mcp-server
+```
+
 ## MCP tool (tools/call)
 
 ```bash
@@ -79,3 +86,5 @@ curl -s -X POST http://127.0.0.1:8000/feedback \
 ```
 
 `feedback_type` (optional): `not_relevant`, `biased`, `not_factual`, `incomplete_instructions`, `unsafe`, `style_tone`, `other`
+
+
