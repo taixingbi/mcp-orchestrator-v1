@@ -18,6 +18,7 @@ class Settings:
     # LangChain / LangSmith
     langchain_project: Optional[str] = os.getenv("LANGCHAIN_PROJECT")
     langchain_api_key: Optional[str] = os.getenv("LANGCHAIN_API_KEY")
+    langsmith_api_key: Optional[str] = os.getenv("LANGSMITH_API_KEY")
     langchain_endpoint: Optional[str] = os.getenv("LANGCHAIN_ENDPOINT")
     langsmith_tracing: bool = os.getenv("LANGSMITH_TRACING", "false").lower() == "true"
 
@@ -29,27 +30,55 @@ class Settings:
     openai_api_key: Optional[str] = os.getenv("OPENAI_API_KEY")
     openai_model: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
-    # Query rewriting (refine question before SQL/RAG)
-    rewrite_query: bool = os.getenv("REWRITE_QUERY", "false").lower() == "true"
 
     # Default timeouts for MCP tool calls (seconds)
     tools_timeout_s: float = float(os.getenv("TOOLS_TIMEOUT_S", "60"))
     invoke_timeout_s: float = float(os.getenv("INVOKE_TIMEOUT_S", "120"))
 
+    @staticmethod
+    def _server_dict(name: str, url: str) -> dict:
+        """Build a single-server config for MultiServerMCPClient."""
+        return {name: {"transport": "http", "url": url.rstrip("/") + "/"}} if url else {}
+
+    @property
+    def sql_server_config(self) -> dict:
+        """SQL MCP server config from env; empty dict if not set."""
+        url = (self.mcp_tool_sql_url or "").rstrip("/")
+        return self._server_dict("tool_sql", url)
+
+    @property
+    def rag_server_config(self) -> dict:
+        """RAG MCP server config from env; empty dict if not set."""
+        url = (self.mcp_tool_rag_url or "").rstrip("/")
+        return self._server_dict("tool_rag", url)
+
 
 settings = Settings()
 
 
-def get_langsmith_tags() -> List[str]:
-    """Build tags for LangSmith traces (key:value format)."""
+def has_langsmith_credentials() -> bool:
+    """True if we have an API key to call LangSmith (LANGCHAIN_API_KEY or LANGSMITH_API_KEY)."""
+    return bool(settings.langchain_api_key or settings.langsmith_api_key)
+
+
+def get_langsmith_tags(
+    request_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+) -> List[str]:
+    """Build tags for LangSmith traces (key:value format). Optionally include request_id and session_id."""
     tags = [
         f"mcp_name:{settings.mcp_name}",
         f"agent_model:{settings.openai_model}",
-        f"agent_rewrite_query:{settings.rewrite_query}",
         f"agent_has_sql:{bool(settings.mcp_tool_sql_url)}",
     ]
     if settings.langchain_project:
         tags.append(f"langchain_project:{settings.langchain_project}")
     if settings.langsmith_tracing:
         tags.append("langsmith_tracing:true")
+    if request_id:
+        tags.append(f"request_id:{request_id}")
+    if session_id:
+        tags.append(f"session_id:{session_id}")
     return tags
+
+

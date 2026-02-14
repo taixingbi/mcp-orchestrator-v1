@@ -29,12 +29,6 @@ pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```
 
-## Health
-
-```bash
-curl http://127.0.0.1:8000/health
-```
-
 ### Docker
 <!-- Build and run with .env; port 8000. -->
 ```bash
@@ -42,24 +36,34 @@ docker build -t mcp-server .
 docker run -p 8000:8000 --env-file .env mcp-server
 ```
 
-## MCP tool (tools/call)
+## Health
 
 ```bash
-curl -s -X POST \
-  -H "Content-Type: application/json" \
-  -H "Accept: application/json, text/event-stream" \
-  -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"answer_question","arguments":{"question":"List 5 job titles in Ventura"}},"id":1}' \
-  http://localhost:8000/mcp/
+curl http://127.0.0.1:8000/health
 ```
 
-## Stream answer (SSE)
 
-Events are `{type: "rewrite"|"answer"|"error", text: "..."}`:
+## MCP tool (tools/call)
+
+## call orchestrator_stream_answer
+```bash
+curl -s -X POST http://localhost:8000/orchestrator/stream-answer \
+  -H "Content-Type: application/json" \
+  -d '{
+    "session_id": "123456",
+    "request_id": "12345678",
+    "question": "List 5 job titles in Ventura"
+  }'
+```
 
 ```bash
-curl -N -sS "http://localhost:8000/stream-answer" \
+curl -s -X POST http://localhost:8000/orchestrator/stream-answer \
   -H "Content-Type: application/json" \
-  -d '{"question": "List 5 job titles in Ventura?"}'
+  -d '{
+    "session_id": "123456",
+    "request_id": "12345678",
+    "question": "what is taixing visa status?"
+  }'
 ```
 
 ## Feedback
@@ -70,7 +74,7 @@ Submit feedback on an agent response. Use `run_id` from the first SSE event of `
 ```bash
 curl -s -X POST http://localhost:8000/feedback \
   -H "Content-Type: application/json" \
-  -d '{"run_id":"<run_id from stream-answer>","rating":"thumbs_up"}'
+  -d '{"run_id":"c111d890-55c2-40ec-ba23-84a18ffa91f1","rating":"thumbs_up"}'
 ```
 
 **Thumbs down (with type and comment):**
@@ -78,7 +82,7 @@ curl -s -X POST http://localhost:8000/feedback \
 curl -s -X POST http://localhost:8000/feedback \
   -H "Content-Type: application/json" \
   -d '{
-    "run_id": "<run_id from stream-answer>",
+    "run_id": "c111d890-55c2-40ec-ba23-84a18ffa91f1",
     "rating": "thumbs_down",
     "feedback_type": "not_factual",
     "question": "List 5 job titles in Ventura",
