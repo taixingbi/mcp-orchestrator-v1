@@ -87,4 +87,49 @@ curl -s -X POST http://127.0.0.1:8000/feedback \
 
 `feedback_type` (optional): `not_relevant`, `biased`, `not_factual`, `incomplete_instructions`, `unsafe`, `style_tone`, `other`
 
+## Fly.io
 
+**Apps:** `mcp-orchestrator-{dev|qa|prod}` · **URLs:** `https://mcp-orchestrator-{env}.fly.dev`
+
+CI deploys: `main` → prod, `qa` → qa, `feature/**` → dev.
+
+### One-time setup
+```bash
+brew install flyctl
+fly auth login
+fly auth token   # → set as GitHub secret FLY_API_TOKEN for CI
+```
+
+### Create apps (once per env)
+```bash
+fly launch --name mcp-orchestrator-dev
+fly launch --name mcp-orchestrator-qa
+fly launch --name mcp-orchestrator-prod
+```
+
+### Set secrets
+Sync `.env` to an app:
+```bash
+fly secrets set OPENAI_API_KEY=xxx MCP_TOOL_SQL_URL=xxx MCP_TOOL_RAG_URL=xxx ... --app mcp-orchestrator-dev
+```
+
+### Deploy
+```bash
+fly deploy --app mcp-orchestrator-dev
+```
+Pushes to `main`, `qa`, or `feature/**` auto-deploy via GitHub Actions when `FLY_API_TOKEN` is set.
+
+### Fly health and tool (example)
+
+**Health:**
+```bash
+curl https://mcp-orchestrator-dev.fly.dev/health
+```
+
+**Call MCP tool:**
+```bash
+curl -s -X POST "https://mcp-orchestrator-dev.fly.dev/mcp/" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"answer_question","arguments":{"question":"List 5 job titles in Ventura"}}}'
+```
