@@ -1,12 +1,10 @@
 """Router agent: classify question as RAG or SQL for single-phase execution."""
 from typing import Optional
 
-from langchain_openai import ChatOpenAI
-
-from config import get_langsmith_tags, settings
+from config import get_langsmith_tags, get_llm
 
 ROUTER_PROMPT = """
-You are a strict router. Return ONLY: RAG or SQL.
+You are a strict router. Return ONLY one of: RAG, SQL, or BOTH.
 
 RAG (person/candidate): If question mentions Taixing, Bi → RAG.
   Topics: background, resume, skills, experience; visa sponsorship; LLM, LangChain, RAG;
@@ -17,7 +15,7 @@ SQL (institutional/dataset): Keywords: jurisdiction, amount, salary, pay band, c
   job descriptions, responsibilities, requirements; role comparisons; labor-market data.
   No personal/candidate info.
 
-Return ONLY: RAG or SQL.
+Return ONLY: RAG, SQL, or BOTH.
 """
 
 
@@ -28,9 +26,12 @@ async def route_question(
     session_id: Optional[str] = None,
 ) -> str:
     """Classify question as 'RAG' or 'SQL'. Uses LLM with router prompt."""
-    llm = ChatOpenAI(model=settings.openai_model, temperature=0)
+    llm = get_llm()
     resp = await llm.ainvoke(
         ROUTER_PROMPT + f"\nQuestion: {question}",
-        config={"tags": get_langsmith_tags(request_id=request_id, session_id=session_id)},
+        config={
+        "run_name": "agent_router",
+        "tags": get_langsmith_tags(request_id=request_id, session_id=session_id),
+    },
     )
     return (resp.content or "").strip().upper()

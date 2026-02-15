@@ -6,7 +6,7 @@ from typing import Literal, Optional
 from langsmith import Client
 from pydantic import BaseModel, Field
 
-from config import has_langsmith_credentials, settings
+from config import has_langsmith_credentials
 
 LANGSMITH_FEEDBACK_KEY = "user_rating"
 
@@ -25,6 +25,7 @@ class FeedbackBody(BaseModel):
     """Feedback on an agent response."""
 
     request_id: Optional[str] = Field(None, description="request_id from first SSE event of stream-answer (optional)")
+    agent_graph_run_id: Optional[str] = Field(None, description="agent_graph_run_id from answer event; use to attach feedback to agent_graph run")
     question: Optional[str] = Field(None, description="Original question (optional)")
     answer_snippet: Optional[str] = Field(None, description="Snippet of answer being rated (optional)")
     rating: Literal["thumbs_up", "thumbs_down"] = Field(..., description="Thumbs up or down")
@@ -36,19 +37,20 @@ class FeedbackBody(BaseModel):
 
 
 def submit_langsmith_feedback(
-    run_id: str,
+    agent_graph_run_id: str,
     rating: Literal["thumbs_up", "thumbs_down"],
     feedback_type: Optional[str],
     comment: Optional[str],
 ) -> bool:
-    """Submit feedback to LangSmith. Returns True if sent, False if skipped (no API key)."""
+    """Submit feedback to LangSmith for the agent_graph run (root run from orchestrator).
+    Attaches feedback to the agent_graph node, not child runs. Returns True if sent, False if skipped."""
     if not has_langsmith_credentials():
         return False
     try:
         client = Client()
         score = 1.0 if rating == "thumbs_up" else -1.0
         client.create_feedback(
-            run_id=run_id,
+            run_id=agent_graph_run_id,
             key=LANGSMITH_FEEDBACK_KEY,
             score=score,
             value=feedback_type or rating,

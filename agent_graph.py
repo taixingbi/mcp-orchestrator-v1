@@ -10,8 +10,9 @@ from langgraph.graph.message import MessagesState
 from langgraph.prebuilt import ToolNode
 from typing_extensions import TypedDict
 
-from answer_judge import MAX_RETRIES, evaluate_answer
+from agent_answer_judge import MAX_RETRIES, evaluate_answer
 from config import settings
+from utils import extract_message_content
 
 _agent_cache: Dict[Tuple[str, float], Any] = {}
 
@@ -19,11 +20,6 @@ _agent_cache: Dict[Tuple[str, float], Any] = {}
 class AgentState(MessagesState, total=False):
     retry_count: int
     judge_passed: bool
-
-
-def _extract_content(msg: Any) -> str:
-    c = getattr(msg, "content", None) or (msg.get("content") if isinstance(msg, dict) else None)
-    return str(c) if c else ""
 
 
 def _should_continue(state: AgentState) -> Literal["tool_node", "judge"]:
@@ -36,7 +32,7 @@ def _judge_continue(state: AgentState) -> Literal["__end__", "llm_call"]:
     return "__end__" if state.get("judge_passed") else "llm_call"
 
 
-async def build_agent_for_servers(servers: dict, tools_timeout_s: float = 60.0):
+async def build_graph_agent(servers: dict, tools_timeout_s: float = 60.0):
     """Build (or return cached) compiled LangGraph agent for the given MCP server config."""
     if not servers:
         raise ValueError("servers must be non-empty")
@@ -63,9 +59,9 @@ async def build_agent_for_servers(servers: dict, tools_timeout_s: float = 60.0):
         for m in messages:
             role = getattr(m, "type", None) or (m.get("role") if isinstance(m, dict) else None)
             if role in ("human", "user") and not question:
-                question = _extract_content(m)
+                question = extract_message_content(m)
             elif role == "ai":
-                answer = _extract_content(m)
+                answer = extract_message_content(m)
         passed, feedback = await evaluate_answer(question, answer)
         if passed or retry_count >= MAX_RETRIES:
             return {"judge_passed": True}

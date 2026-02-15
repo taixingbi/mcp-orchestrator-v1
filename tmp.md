@@ -5,7 +5,7 @@ curl -s -X POST http://localhost:8000/orchestrator/stream-answer \
 -d '{
   "session_id": "123456",
   "request_id": "12345678",
-  "question": "List 5 job titles in Ventura"
+  "question": "List 2 job titles in Ventura"
 }'
 
 
@@ -14,8 +14,15 @@ curl -s -X POST http://localhost:8000/orchestrator/stream-answer \
 -d '{
   "session_id": "123456",
   "request_id": "12345678",
-  "question": "what is your expected taixing compensation? ?"
+  "question": "What is the your visa status? Do they require sponsorship?"
 }'
+
+# MCP RAG tool (answer_question routes to RAG for person/candidate questions like visa)
+curl -s -X POST http://localhost:8000/mcp/ \
+-H "Content-Type: application/json" \
+-H "Accept: application/json, text/event-stream" \
+-d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"answer_question","arguments":{"question":"What is your visa status? Do they require sponsorship?"}}}'
+
 
 curl -s -X POST http://localhost:8000/orchestrator/stream-answer \
 -H "Content-Type: application/json" \
@@ -24,6 +31,26 @@ curl -s -X POST http://localhost:8000/orchestrator/stream-answer \
   "request_id": "12345678",
   "question": "what weather in sf"
 }'
+
+
+```bash
+curl -s -X POST http://localhost:8000/feedback \
+  -H "Content-Type: application/json" \
+  -d '{"run_id":"019c5f02-df39-7020-bd01-338bc081c855","rating":"thumbs_up"}'
+```
+
+curl -s -X POST http://localhost:8000/feedback \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_graph_run_id": "019c5f37-a2f8-7a40-b300-ba7b8547f120",
+    "rating": "thumbs_down",
+    "feedback_type": "not_factual",
+    "question": "List 5 job titles in Ventura",
+    "comment": "Only returned 3 titles"
+  }'
+
+
+
 
 
 ## mcp_tool_rag
@@ -85,3 +112,5 @@ It operates only on institutional / dataset-driven information.
     g.add_conditional_edges("llm_call", _should_continue, ["tool_node", END])
     g.add_edge("tool_node", "llm_call")
     compiled = g.compile()
+
+

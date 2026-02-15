@@ -2,61 +2,54 @@ import asyncio
 import uuid
 from typing import Any, AsyncIterator, List, Optional, Tuple
 
-from agent_factory import build_agent_for_servers
+from langchain_core.callbacks import AsyncCallbackHandler
+
+from agent_graph import build_graph_agent
 from agent_router import route_question
-from config import settings
-from rewrite import rewrite_query
+from agent_rewrite import rewrite_query
+from config import get_langsmith_tags, settings
+from utils import last_ai_content
 
 
-def _extract_ai_content(msg: Any) -> str:
-    content = msg.get("content") if isinstance(msg, dict) else getattr(msg, "content", None)
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        return "".join(
-            b.get("text", "") for b in content
-            if isinstance(b, dict) and b.get("type") == "text"
-        )
-    return ""
+class _AgentRunIdCallback(AsyncCallbackHandler):
+    """Capture LangSmith run_id of the root agent_graph run."""
+
+    def __init__(self, run_ids: List[str]):
+        self.run_ids = run_ids
+
+    async def on_chain_start(self, serialized, inputs, *, run_id, parent_run_id=None, **kwargs):
+        if parent_run_id is None:
+            self.run_ids.append(str(run_id))
 
 
-def _last_ai_content(messages: List[Any]) -> str:
-    """Return the text content of the last AI message in the list."""
-    for msg in reversed(messages):
-        is_ai = getattr(msg, "type", None) == "ai" or (isinstance(msg, dict) and msg.get("type") == "ai")
-        if is_ai:
-            return _extract_ai_content(msg) or ""
-    return ""
-
-
-async def _run_phase(
+async def run_graph(
     messages: list,
     servers: dict,
     tools_timeout_s: float,
     invoke_timeout_s: float,
-) -> List[Any]:
-    """Run one phase (SQL or RAG) and return updated messages."""
+    *,
+    request_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+) -> Tuple[List[Any], Optional[str]]:
+    """Run one phase (SQL or RAG) and return (messages, agent_graph_run_id). agent_graph_run_id from LangSmith."""
     if not servers:
-        return messages
-    agent = await build_agent_for_servers(servers, tools_timeout_s)
+        return messages, None
+    agent = await build_graph_agent(servers, tools_timeout_s)
+    run_ids: List[str] = []
+    callback = _AgentRunIdCallback(run_ids)
     out = await asyncio.wait_for(
-        agent.ainvoke({"messages": messages}),
+        agent.ainvoke(
+            {"messages": messages},
+            config={
+                "run_name": "agent_graph",
+                "callbacks": [callback],
+                "tags": get_langsmith_tags(request_id=request_id, session_id=session_id),
+            },
+        ),
         timeout=invoke_timeout_s,
     )
-    return out["messages"]
-
-
-async def _run_both_phases(
-    messages: list,
-    sql_servers: dict,
-    rag_servers: dict,
-    tools_timeout_s: float,
-    invoke_timeout_s: float,
-) -> List[Any]:
-    """Run SQL phase then RAG phase; return updated messages."""
-    for servers in (sql_servers, rag_servers):
-        messages = await _run_phase(messages, servers, tools_timeout_s, invoke_timeout_s)
-    return messages
+    agent_graph_run_id = run_ids[0] if run_ids else None
+    return out["messages"], agent_graph_run_id
 
 
 def _select_phase(
@@ -64,7 +57,7 @@ def _select_phase(
     rag_servers: dict,
     route: str,
 ) -> Tuple[dict, dict]:
-    """Return (sql_servers, rag_servers) to run based on route. Route is 'RAG' or 'SQL'."""
+    """Return (sql_servers, rag_servers) to run based on route. Route is 'RAG', 'SQL', or 'BOTH'."""
     if route == "SQL":
         return sql_servers, {}
     if route == "RAG":
@@ -72,29 +65,28 @@ def _select_phase(
     return sql_servers, rag_servers
 
 
-async def run_agent(
+async def answer_query_sync(
     query: str,
     *,
-    tools_timeout_s: float = 10.0,
-    invoke_timeout_s: float = 30.0,
+    tools_timeout_s: Optional[float] = None,
+    invoke_timeout_s: Optional[float] = None,
     request_id: Optional[str] = None,
     session_id: Optional[str] = None,
-) -> dict:
-    sql_servers, rag_servers = settings.sql_server_config, settings.rag_server_config
-    query = await rewrite_query(query, request_id=request_id, session_id=session_id)
-    messages = [{"role": "user", "content": query}]
-    route = await route_question(query, request_id=request_id, session_id=session_id)
-    sql_servers, rag_servers = _select_phase(sql_servers, rag_servers, route)
-    messages = await _run_both_phases(
-        messages, sql_servers, rag_servers, tools_timeout_s, invoke_timeout_s
-    )
-    return {"messages": messages}
-
-
-async def answer_query_sync(query: str, **kwargs: Any) -> str:
-    """Run agent (route to SQL or RAG when both configured) and return the final answer."""
-    out = await run_agent(query, **kwargs)
-    return _last_ai_content(out["messages"])
+) -> str:
+    """Run agent and return the final answer. Consumes stream_answer_query for single code path."""
+    answer = ""
+    async for event in stream_answer_query(
+        query,
+        request_id=request_id,
+        session_id=session_id,
+        tools_timeout_s=tools_timeout_s,
+        invoke_timeout_s=invoke_timeout_s,
+    ):
+        if event.get("type") == "answer":
+            answer = event.get("text", "")
+        elif event.get("type") == "error":
+            return event.get("text", "Unknown error")
+    return answer
 
 
 async def stream_answer_query(
@@ -102,10 +94,14 @@ async def stream_answer_query(
     *,
     session_id: Optional[str] = None,
     request_id: Optional[str] = None,
+    tools_timeout_s: Optional[float] = None,
+    invoke_timeout_s: Optional[float] = None,
 ) -> AsyncIterator[dict]:
     """Stream the assistant reply. Routes to SQL or RAG when both configured.
     Yields request_id first; then state/rewrite/route/answer events."""
     request_id = request_id or str(uuid.uuid4())
+    tools_s = tools_timeout_s if tools_timeout_s is not None else settings.tools_timeout_s
+    invoke_s = invoke_timeout_s if invoke_timeout_s is not None else settings.invoke_timeout_s
     try:
         sql_servers, rag_servers = settings.sql_server_config, settings.rag_server_config
         yield {"type": "request_id", "session_id": session_id, "request_id": request_id}
@@ -117,17 +113,20 @@ async def stream_answer_query(
         sql_servers, rag_servers = _select_phase(sql_servers, rag_servers, route)
         yield {"type": "route", "route": route}
         messages = [{"role": "user", "content": query}]
+        agent_graph_run_id = None
         for phase, servers in [("sql", sql_servers), ("rag", rag_servers)]:
             if servers:
                 yield {"type": "state", "phase": phase, "message": f"Running {phase.upper()} phase..."}
-                messages = await _run_phase(
-                    messages, servers,
-                    settings.tools_timeout_s,
-                    settings.invoke_timeout_s,
+                messages, agent_graph_run_id = await run_graph(
+                    messages, servers, tools_s, invoke_s,
+                    request_id=request_id, session_id=session_id,
                 )
-        content = _last_ai_content(messages)
+        content = last_ai_content(messages)
         if content:
-            yield {"type": "answer", "text": content}
+            event = {"type": "answer", "text": content}
+            if agent_graph_run_id:
+                event["agent_graph_run_id"] = agent_graph_run_id
+            yield event
         yield {"type": "state", "phase": "done", "message": "Complete"}
     except Exception as e:
         yield {"type": "error", "text": format_error(e)}

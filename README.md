@@ -44,6 +44,13 @@ curl http://127.0.0.1:8000/health
 
 
 ## MCP tool (tools/call)
+# MCP RAG tool (answer_question routes to RAG for person/candidate questions like visa)
+```bash
+curl -s -X POST http://localhost:8000/mcp/ \
+-H "Content-Type: application/json" \
+-H "Accept: application/json, text/event-stream" \
+-d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"answer_question","arguments":{"question":"What is your visa status? Do they require sponsorship?"}}}'
+```
 
 ## call orchestrator_stream_answer
 ```bash
@@ -68,13 +75,13 @@ curl -s -X POST http://localhost:8000/orchestrator/stream-answer \
 
 ## Feedback
 
-Submit feedback on an agent response. Use `run_id` from the first SSE event of `/stream-answer` to attach feedback to that run in LangSmith.
+Submit feedback on an agent response. Use `agent_graph_run_id` from the answer SSE event of `/stream-answer` (or `request_id` from the first event) to attach feedback to the agent_graph run in LangSmith.
 
-**Thumbs up (with run_id):**
+**Thumbs up (with agent_graph_run_id):**
 ```bash
 curl -s -X POST http://localhost:8000/feedback \
   -H "Content-Type: application/json" \
-  -d '{"run_id":"c111d890-55c2-40ec-ba23-84a18ffa91f1","rating":"thumbs_up"}'
+  -d '{"agent_graph_run_id":"c111d890-55c2-40ec-ba23-84a18ffa91f1","rating":"thumbs_up"}'
 ```
 
 **Thumbs down (with type and comment):**
@@ -82,7 +89,7 @@ curl -s -X POST http://localhost:8000/feedback \
 curl -s -X POST http://localhost:8000/feedback \
   -H "Content-Type: application/json" \
   -d '{
-    "run_id": "c111d890-55c2-40ec-ba23-84a18ffa91f1",
+    "agent_graph_run_id": "019c5f54-0667-7531-9b48-62a65710fd2c",
     "rating": "thumbs_down",
     "feedback_type": "not_factual",
     "question": "List 5 job titles in Ventura",
@@ -146,11 +153,11 @@ curl -s -X POST "https://mcp-orchestrator-v1-dev.fly.dev/mcp/" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"answer_question","arguments":{"question":"what is taixing visa"}}}'
 ```
 
-**Thumbs up (with run_id):**
+**Thumbs up (with agent_graph_run_id):**
 ```bash
 curl -s -X POST https://mcp-orchestrator-v1-dev.fly.dev/feedback \
   -H "Content-Type: application/json" \
-  -d '{"run_id":"lc_2038042c-2ed5-4444-afeb-3c2fac830ed2","rating":"thumbs_up"}'
+  -d '{"agent_graph_run_id":"lc_2038042c-2ed5-4444-afeb-3c2fac830ed2","rating":"thumbs_up"}'
 ```
 
 **Thumbs down (with type and comment):**
@@ -158,7 +165,7 @@ curl -s -X POST https://mcp-orchestrator-v1-dev.fly.dev/feedback \
 curl -s -X POST https://mcp-orchestrator-v1-dev.fly.dev/feedback \
   -H "Content-Type: application/json" \
   -d '{
-    "run_id": "lc_2038042c-2ed5-4444-afeb-3c2fac830ed2",
+    "agent_graph_run_id": "lc_2038042c-2ed5-4444-afeb-3c2fac830ed2",
     "rating": "thumbs_down",
     "feedback_type": "not_factual",
     "question": "List 5 job titles in Ventura",

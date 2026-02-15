@@ -67,17 +67,18 @@ async def submit_feedback(body: FeedbackBody):
     """Submit feedback on an agent response (thumbs up/down, type, optional comment)."""
     if body.feedback_type and body.feedback_type not in FEEDBACK_TYPES:
         return {"status": "error", "message": f"feedback_type must be one of: {', '.join(sorted(FEEDBACK_TYPES))}"}
+    agent_graph_run_id = body.agent_graph_run_id or body.request_id
     logging.info(
-        "feedback: rating=%s type=%s request_id=%s question=%s comment=%s",
+        "feedback: rating=%s type=%s run_id=%s question=%s comment=%s",
         body.rating,
         body.feedback_type,
-        body.request_id or None,
+        agent_graph_run_id or None,
         (body.question or "")[:50] or None,
         (body.comment or "")[:50] or None,
     )
-    if body.request_id and (has_langsmith_credentials() or settings.langsmith_tracing):
+    if agent_graph_run_id and has_langsmith_credentials():
         submit_langsmith_feedback(
-            run_id=body.request_id,
+            agent_graph_run_id=agent_graph_run_id,
             rating=body.rating,
             feedback_type=body.feedback_type,
             comment=body.comment,

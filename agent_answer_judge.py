@@ -1,9 +1,7 @@
 """Judge agent: evaluate answer quality; if not good, provide feedback for retry."""
 from typing import Optional, Tuple
 
-from langchain_openai import ChatOpenAI
-
-from config import get_langsmith_tags, settings
+from config import get_langsmith_tags, get_llm
 
 MAX_RETRIES = 2
 
@@ -28,10 +26,11 @@ async def evaluate_answer(
     """Evaluate answer quality. Returns (passed, feedback). If passed, feedback is None."""
     if not answer or not answer.strip():
         return False, "Answer is empty."
-    llm = ChatOpenAI(model=settings.openai_model, temperature=0)
+    llm = get_llm()
+    tags = get_langsmith_tags(request_id=request_id, session_id=session_id)
     resp = await llm.ainvoke(
         JUDGE_PROMPT + f"\nQuestion: {question}\n\nAnswer: {answer}",
-        config={"tags": get_langsmith_tags(request_id=request_id, session_id=session_id)},
+        config={"run_name": "Answer Judge", "tags": tags},
     )
     text = (resp.content or "").strip().upper()
     if text.startswith("GOOD"):

@@ -7,6 +7,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Lazy LLM singleton (import lazily to avoid loading langchain at config import)
+_llm = None
+
 
 class Settings:
     """Settings from env (and .env)."""
@@ -54,6 +57,15 @@ class Settings:
 
 
 settings = Settings()
+
+
+def get_llm():
+    """Return a shared ChatOpenAI instance (lazy init)."""
+    global _llm
+    if _llm is None:
+        from langchain_openai import ChatOpenAI
+        _llm = ChatOpenAI(model=settings.openai_model, temperature=0)
+    return _llm
 
 
 def has_langsmith_credentials() -> bool:

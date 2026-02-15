@@ -17,7 +17,7 @@ mcp = FastMCP(
 )
 
 
-@mcp.tool()
+@mcp.tool(name="answer_question")
 async def tool_mcp_answer(question: str) -> str:
     """Answer a question using SQL then RAG tools. Returns the full answer text."""
     try:
