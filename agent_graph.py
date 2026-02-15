@@ -1,6 +1,6 @@
 """Build LangGraph agents from MCP server configs (with caching)."""
 import asyncio
-from typing import Any, Dict, Literal, Tuple
+from typing import Any, Dict, List, Literal, Tuple
 
 from langchain_core.messages import HumanMessage
 from langchain_openai import ChatOpenAI
@@ -10,10 +10,11 @@ from langgraph.graph.message import MessagesState
 from langgraph.prebuilt import ToolNode
 from typing_extensions import TypedDict
 
-from agent_answer_judge import MAX_RETRIES, evaluate_answer
+from agent_answer_judge import evaluate_answer
 from config import settings
 from utils import extract_message_content
 
+MAX_RETRIES = 1
 _agent_cache: Dict[Tuple[str, float], Any] = {}
 
 
@@ -56,13 +57,17 @@ async def build_graph_agent(servers: dict, tools_timeout_s: float = 60.0):
             return {"judge_passed": True}
         question = ""
         answer = ""
+        tool_contents: List[str] = []
         for m in messages:
             role = getattr(m, "type", None) or (m.get("role") if isinstance(m, dict) else None)
             if role in ("human", "user") and not question:
                 question = extract_message_content(m)
             elif role == "ai":
                 answer = extract_message_content(m)
-        passed, feedback = await evaluate_answer(question, answer)
+            elif role == "tool":
+                tool_contents.append(extract_message_content(m))
+        evidence = "\n".join(f"[E{i+1}] {c}" for i, c in enumerate(tool_contents) if c) or None
+        passed, feedback = await evaluate_answer(question, answer, evidence=evidence)
         if passed or retry_count >= MAX_RETRIES:
             return {"judge_passed": True}
         return {
