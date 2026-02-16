@@ -5,7 +5,7 @@ from typing import Any, AsyncIterator, List, Optional, Tuple
 from langchain_core.callbacks import AsyncCallbackHandler
 
 from agent_graph import build_graph_agent
-from agent_router import route_question
+from agent_router import route_question, should_route_to_rag
 from agent_rewrite import rewrite_query
 from config import get_langsmith_tags, settings
 from utils import last_ai_content
@@ -109,10 +109,14 @@ async def stream_answer_query(
         sql_servers, rag_servers = settings.sql_server_config, settings.rag_server_config
         yield {"type": "request_id", "session_id": session_id, "request_id": request_id}
         yield {"type": "state", "phase": "rewrite", "message": "Rewriting question..."}
+        original_question = query
         query = await rewrite_query(query, request_id=request_id, session_id=session_id)
         yield {"type": "rewrite", "text": query}
         yield {"type": "state", "phase": "route", "message": "Routing question..."}
-        route = await route_question(query, request_id=request_id, session_id=session_id)
+        if should_route_to_rag(original_question, query):
+            route = "RAG"
+        else:
+            route = await route_question(query, request_id=request_id, session_id=session_id)
         sql_servers, rag_servers = _select_phase(sql_servers, rag_servers, route)
         yield {"type": "route", "route": route}
         messages = [{"role": "user", "content": query}]

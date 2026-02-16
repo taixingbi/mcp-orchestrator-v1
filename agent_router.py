@@ -19,13 +19,20 @@ Return ONLY: RAG, SQL, or BOTH.
 """
 
 
+def should_route_to_rag(question: str, rewritten_question: str) -> bool:
+    """Code judge: route to RAG if either the original or rewritten question contains 'taixing'."""
+    return "taixing" in (question or "").lower() or "taixing" in (rewritten_question or "").lower()
+
+
 async def route_question(
     question: str,
     *,
     request_id: Optional[str] = None,
     session_id: Optional[str] = None,
 ) -> str:
-    """Classify question as 'RAG' or 'SQL'. Uses LLM with router prompt."""
+    """Classify question as 'RAG' or 'SQL'. Uses code judge for 'taixing', else LLM with router prompt."""
+    if should_route_to_rag(question, question):
+        return "RAG"
     llm = get_llm()
     resp = await llm.ainvoke(
         ROUTER_PROMPT + f"\nQuestion: {question}",
