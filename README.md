@@ -170,16 +170,17 @@ curl https://mcp-orchestrator-v1-dev.fly.dev/health
 
 ## call orchestrator_stream_answer
 ```bash
-curl -s -X POST "https://mcp-orchestrator-v1-dev.fly.dev/mcp/" \
+curl -s -X POST https://mcp-orchestrator-v1-dev.fly.dev/orchestrator/stream-answer \
   -H "Content-Type: application/json" \
   -d '{
     "session_id": "123456",
     "request_id": "12345678",
-    "question": "List 5 job titles in Ventura"
+    "question": "List 5 job titles in Ventura?"
   }'
 ```
 
 ```bash
+curl -s -X POST https://mcp-orchestrator-v1-dev.fly.dev/orchestrator/stream-answer \
   -H "Content-Type: application/json" \
   -d '{
     "session_id": "123456",
@@ -187,6 +188,7 @@ curl -s -X POST "https://mcp-orchestrator-v1-dev.fly.dev/mcp/" \
     "question": "what is taixing visa status?"
   }'
 ```
+
 
 **Thumbs up (with agent_graph_run_id):**
 ```bash
