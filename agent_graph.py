@@ -33,6 +33,30 @@ def _judge_continue(state: AgentState) -> Literal["__end__", "llm_call"]:
     return "__end__" if state.get("judge_passed") else "llm_call"
 
 
+async def _inject_request_context(request, execute):
+    """Inject request_id and session_id from config into MCP tool arguments (tools/call pattern)."""
+    config = getattr(getattr(request, "runtime", None), "config", None) or {}
+    configurable = config.get("configurable") or {}
+    request_id = configurable.get("request_id")
+    session_id = configurable.get("session_id")
+    tool_call = request.tool_call
+    args = dict(tool_call.get("args", {}) if isinstance(tool_call, dict) else getattr(tool_call, "args", {}))
+    if request_id is not None:
+        args["request_id"] = request_id
+    if session_id is not None:
+        args["session_id"] = session_id
+    if isinstance(tool_call, dict):
+        modified_call = {**tool_call, "args": args}
+    else:
+        modified_call = {
+            "name": getattr(tool_call, "name", ""),
+            "args": args,
+            "id": getattr(tool_call, "id", ""),
+            "type": getattr(tool_call, "type", "tool_call"),
+        }
+    return await execute(request.override(tool_call=modified_call))
+
+
 async def build_graph_agent(servers: dict, tools_timeout_s: float = 60.0):
     """Build (or return cached) compiled LangGraph agent for the given MCP server config."""
     if not servers:
@@ -43,7 +67,7 @@ async def build_graph_agent(servers: dict, tools_timeout_s: float = 60.0):
         return _agent_cache[cache_key]
     client = MultiServerMCPClient(servers, tool_name_prefix=False)
     tools = await asyncio.wait_for(client.get_tools(), timeout=tools_timeout_s)
-    tool_node = ToolNode(tools)
+    tool_node = ToolNode(tools, awrap_tool_call=_inject_request_context)
     llm = ChatOpenAI(model=settings.openai_model, temperature=0).bind_tools(tools)
 
     async def llm_call(state: AgentState):

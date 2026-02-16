@@ -37,15 +37,18 @@ async def run_graph(
     agent = await build_graph_agent(servers, tools_timeout_s)
     run_ids: List[str] = []
     callback = _AgentRunIdCallback(run_ids)
+    config = {
+        "run_name": "agent_graph",
+        "callbacks": [callback],
+        "tags": get_langsmith_tags(request_id=request_id, session_id=session_id),
+    }
+    config["configurable"] = {}
+    if request_id is not None:
+        config["configurable"]["request_id"] = request_id
+    if session_id is not None:
+        config["configurable"]["session_id"] = session_id
     out = await asyncio.wait_for(
-        agent.ainvoke(
-            {"messages": messages},
-            config={
-                "run_name": "agent_graph",
-                "callbacks": [callback],
-                "tags": get_langsmith_tags(request_id=request_id, session_id=session_id),
-            },
-        ),
+        agent.ainvoke({"messages": messages}, config=config),
         timeout=invoke_timeout_s,
     )
     agent_graph_run_id = run_ids[0] if run_ids else None

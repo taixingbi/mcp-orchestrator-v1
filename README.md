@@ -46,10 +46,23 @@ curl http://127.0.0.1:8000/health
 ## MCP tool (tools/call)
 # MCP RAG tool (answer_question routes to RAG for person/candidate questions like visa)
 ```bash
-curl -s -X POST http://localhost:8000/mcp/ \
--H "Content-Type: application/json" \
--H "Accept: application/json, text/event-stream" \
--d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"answer_question","arguments":{"question":"What is your visa status? Do they require sponsorship?"}}}'
+curl -s -X POST "http://localhost:8000/mcp/" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "answer_question",
+      "arguments": {
+        "question": "What is your taixing status? Do they require sponsorship?",
+        "request_id": "12345678",
+        "session_id": "123456"
+      }
+    }
+  }'
+
 ```
 
 ## call orchestrator_stream_answer
