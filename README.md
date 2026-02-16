@@ -63,6 +63,23 @@ curl -s -X POST "http://localhost:8000/mcp/" \
     }
   }'
 
+curl -s -X POST "http://localhost:8000/mcp/" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "answer_question",
+      "arguments": {
+        "question": "List 5 job titles in Ventura",
+        "request_id": "12345678",
+        "session_id": "123456"
+      }
+    }
+  }'
+
 ```
 
 ## call orchestrator_stream_answer
@@ -151,19 +168,24 @@ Pushes to `main`, `qa`, or `feature/**` auto-deploy via GitHub Actions when `FLY
 curl https://mcp-orchestrator-v1-dev.fly.dev/health
 ```
 
-**Call MCP tool:**
+## call orchestrator_stream_answer
 ```bash
 curl -s -X POST "https://mcp-orchestrator-v1-dev.fly.dev/mcp/" \
   -H "Content-Type: application/json" \
-  -H "Accept: application/json, text/event-stream" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"answer_question","arguments":{"question":"List 5 job titles in Ventura"}}}'
+  -d '{
+    "session_id": "123456",
+    "request_id": "12345678",
+    "question": "List 5 job titles in Ventura"
+  }'
 ```
 
 ```bash
-curl -s -X POST "https://mcp-orchestrator-v1-dev.fly.dev/mcp/" \
   -H "Content-Type: application/json" \
-  -H "Accept: application/json, text/event-stream" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"answer_question","arguments":{"question":"what is taixing visa"}}}'
+  -d '{
+    "session_id": "123456",
+    "request_id": "12345678",
+    "question": "what is taixing visa status?"
+  }'
 ```
 
 **Thumbs up (with agent_graph_run_id):**
