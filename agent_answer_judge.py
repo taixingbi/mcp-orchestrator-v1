@@ -21,8 +21,6 @@ Return ONLY one line:
 - NOT_GOOD: <brief reason>
 """
 
-
-
 async def evaluate_answer(
     question: str,
     answer: str,
