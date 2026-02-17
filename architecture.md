@@ -233,7 +233,7 @@ sequenceDiagram
 
   API-->>Client: SSE {type:"answer", agent_graph_run_id?}
   API-->>Client: SSE {type:"done"}
-
+```
 
 ---
 
