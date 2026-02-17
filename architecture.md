@@ -194,7 +194,6 @@ This flow is intentionally designed to solve common LLM production failures:
 ## 🗺️ Simplified Sequence Diagram
 
 ```mermaid
-```mermaid
 sequenceDiagram
   participant Client
   participant API
