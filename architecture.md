@@ -184,9 +184,7 @@ This flow is intentionally designed to solve common LLM production failures:
 | Problem                    | Solution in This Pipeline                       |
 | -------------------------- | ----------------------------------------------- |
 | Hallucination              | Tool-grounded LangGraph loop + judge validation |
-| Wrong data source          | Deterministic routing guardrails                |
-| Non-reproducible answers   | request_id + LangSmith root capture             |
-| Slow cold starts           | Cached agents per MCP server                    |
+| Wrong data source          | Deterministic routing guardrails                |                  |
 | Unobservable failures      | SSE phase visibility                            |
 | Weak retrieval queries     | Dual-stage rewrite                              |
 | User feedback disconnected | `agent_graph_run_id` links feedback → trace     |
