@@ -194,6 +194,7 @@ This flow is intentionally designed to solve common LLM production failures:
 ## 🗺️ Simplified Sequence Diagram
 
 ```mermaid
+```mermaid
 sequenceDiagram
   participant Client
   participant API
@@ -216,19 +217,44 @@ sequenceDiagram
 
   alt route = SQL
     API->>Graph: run_graph(phase="SQL")
-    Graph->>MCP: tool calls (SQL tools)
-    Graph->>Judge: agent_answer_judge
+    loop retry until GOOD or MAX_RETRIES
+      Graph->>MCP: tool calls (SQL tools)
+      Graph->>Judge: agent_answer_judge
+      Judge-->>Graph: GOOD or NOT_GOOD(reason)
+      alt NOT_GOOD
+        Graph-->>Graph: inject judge reason\nimprove answer
+      end
+    end
   else route = RAG
     API->>Graph: run_graph(phase="RAG")
-    Graph->>MCP: tool calls (RAG tools)
-    Graph->>Judge: agent_answer_judge
+    loop retry until GOOD or MAX_RETRIES
+      Graph->>MCP: tool calls (RAG tools)
+      Graph->>Judge: agent_answer_judge
+      Judge-->>Graph: GOOD or NOT_GOOD(reason)
+      alt NOT_GOOD
+        Graph-->>Graph: inject judge reason\nimprove answer
+      end
+    end
   else route = BOTH
     API->>Graph: run_graph(phase="SQL")
-    Graph->>MCP: tool calls (SQL tools)
-    Graph->>Judge: agent_answer_judge
+    loop retry until GOOD or MAX_RETRIES
+      Graph->>MCP: tool calls (SQL tools)
+      Graph->>Judge: agent_answer_judge
+      Judge-->>Graph: GOOD or NOT_GOOD(reason)
+      alt NOT_GOOD
+        Graph-->>Graph: inject judge reason\nimprove answer
+      end
+    end
+
     API->>Graph: run_graph(phase="RAG")
-    Graph->>MCP: tool calls (RAG tools)
-    Graph->>Judge: agent_answer_judge
+    loop retry until GOOD or MAX_RETRIES
+      Graph->>MCP: tool calls (RAG tools)
+      Graph->>Judge: agent_answer_judge
+      Judge-->>Graph: GOOD or NOT_GOOD(reason)
+      alt NOT_GOOD
+        Graph-->>Graph: inject judge reason\nimprove answer
+      end
+    end
   end
 
   API-->>Client: SSE {type:"answer", agent_graph_run_id?}
