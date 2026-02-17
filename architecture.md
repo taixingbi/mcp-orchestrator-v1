@@ -192,7 +192,6 @@ This flow is intentionally designed to solve common LLM production failures:
 ---
 
 ## 🗺️ Simplified Sequence Diagram
-
 ```mermaid
 sequenceDiagram
   participant Client
@@ -202,6 +201,7 @@ sequenceDiagram
   participant Graph as LangGraph (run_graph)
   participant MCP as MCP Tool Server(s)
   participant Judge as AnswerJudge (agent_answer_judge)
+  participant LangSmith
 
   Client->>API: POST /orchestrator/stream-answer
   API-->>Client: SSE {type:"request_id"}
@@ -221,7 +221,7 @@ sequenceDiagram
       Graph->>Judge: agent_answer_judge
       Judge-->>Graph: GOOD or NOT_GOOD(reason)
       alt NOT_GOOD
-        Graph-->>Graph: inject judge reason\nimprove answer
+        Graph-->>Graph: inject judge reason\nretry
       end
     end
   else route = RAG
@@ -231,7 +231,7 @@ sequenceDiagram
       Graph->>Judge: agent_answer_judge
       Judge-->>Graph: GOOD or NOT_GOOD(reason)
       alt NOT_GOOD
-        Graph-->>Graph: inject judge reason\nimprove answer
+        Graph-->>Graph: inject judge reason\nretry
       end
     end
   else route = BOTH
@@ -241,7 +241,7 @@ sequenceDiagram
       Graph->>Judge: agent_answer_judge
       Judge-->>Graph: GOOD or NOT_GOOD(reason)
       alt NOT_GOOD
-        Graph-->>Graph: inject judge reason\nimprove answer
+        Graph-->>Graph: inject judge reason\nretry
       end
     end
 
@@ -251,14 +251,21 @@ sequenceDiagram
       Graph->>Judge: agent_answer_judge
       Judge-->>Graph: GOOD or NOT_GOOD(reason)
       alt NOT_GOOD
-        Graph-->>Graph: inject judge reason\nimprove answer
+        Graph-->>Graph: inject judge reason\nretry
       end
     end
   end
 
-  API-->>Client: SSE {type:"answer", agent_graph_run_id?}
+  Graph-->>API: final answer + agent_graph_run_id
+  API-->>Client: SSE {type:"answer", agent_graph_run_id}
   API-->>Client: SSE {type:"done"}
-```
+
+  opt user provides feedback
+    Client->>API: POST /feedback (run_id, rating, comment)
+    API->>LangSmith: create_feedback(run_id, payload)
+    LangSmith-->>API: stored
+  end
+
 
 ---
 
