@@ -195,26 +195,45 @@ This flow is intentionally designed to solve common LLM production failures:
 
 ```mermaid
 sequenceDiagram
-Client->>API: POST /orchestrator/stream-answer
-API-->>Client: request_id
-API->>Rewrite: normalize question
-Rewrite-->>Client: rewrite event
-API->>Router: decide RAG/SQL/BOTH
-Router-->>Client: route event
+  participant Client
+  participant API
+  participant Rewrite
+  participant Router
+  participant Graph as LangGraph (run_graph)
+  participant MCP as MCP Tool Server(s)
+  participant Judge as AnswerJudge (agent_answer_judge)
 
-alt SQL enabled
-  API->>LangGraph(SQL): run_graph()
-  LangGraph->>SQL MCP: tool calls
-end
+  Client->>API: POST /orchestrator/stream-answer
+  API-->>Client: SSE {type:"request_id"}
 
-alt RAG enabled
-  API->>LangGraph(RAG): run_graph()
-  LangGraph->>RAG MCP: tool calls
-end
+  API->>Rewrite: normalize question
+  Rewrite-->>API: rewritten question
+  API-->>Client: SSE {type:"rewrite"}
 
-API-->>Client: answer (with run_id)
-API-->>Client: done
-```
+  API->>Router: decide RAG | SQL | BOTH
+  Router-->>API: route
+  API-->>Client: SSE {type:"route"}
+
+  alt route = SQL
+    API->>Graph: run_graph(phase="SQL")
+    Graph->>MCP: tool calls (SQL tools)
+    Graph->>Judge: agent_answer_judge
+  else route = RAG
+    API->>Graph: run_graph(phase="RAG")
+    Graph->>MCP: tool calls (RAG tools)
+    Graph->>Judge: agent_answer_judge
+  else route = BOTH
+    API->>Graph: run_graph(phase="SQL")
+    Graph->>MCP: tool calls (SQL tools)
+    Graph->>Judge: agent_answer_judge
+    API->>Graph: run_graph(phase="RAG")
+    Graph->>MCP: tool calls (RAG tools)
+    Graph->>Judge: agent_answer_judge
+  end
+
+  API-->>Client: SSE {type:"answer", agent_graph_run_id?}
+  API-->>Client: SSE {type:"done"}
+
 
 ---
 
